@@ -53,7 +53,7 @@ def dump_closure_map(fontfile, outputfolder):
       glyph_data.dump_array(glyphsClosure, fmt_elem, bigEndian)
       glyph_metadata.dump_fmt(offset, fmt_offset)
       glyph_metadata.dump_fmt(size, fmt_size)
-      # print id,g,glyphsClosure
+      #print id, g, glyphsClosure
       offset += size
 
   font.close()

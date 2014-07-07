@@ -30,19 +30,20 @@ class Cleaner(object):
     self.options = Options()
     self.options.hinting = hinting
     self.font = load_font(fontfile, self.options, lazy=False)
-    assert 'glyf' in self.font, 'only support TrueType (quadratic) fonts \
-    (eg, not CFF) at this time'
+    # assert 'glyf' in self.font, 'only support TrueType (quadratic) fonts \
+    #(eg, not CFF) at this time'
     self.whitespace_list = whitespace_list
 
-  def _invalid_glyphs(self, names,rcmap):
+  def _invalid_glyphs(self, names, rcmap):
     invalid_glyphs = set()
-    glyf_table = self.font['glyf']
-    
-    for name in names:
-      if name != '.notdef' and glyf_table[name] and \
-          glyf_table[name].numberOfContours == 0 and \
-          rcmap[name] not in self.whitespace_list:
-        invalid_glyphs.add(name)
+    if 'glyf' in self.font:
+      glyf_table = self.font['glyf']
+      for name in names:
+        if name != '.notdef' and glyf_table[name] and glyf_table[name].numberOfContours == 0 and rcmap[name] not in self.whitespace_list:
+          invalid_glyphs.add(name)
+    else:
+      pass
+
     return invalid_glyphs
 
   def clean(self):
@@ -50,7 +51,7 @@ class Cleaner(object):
     """
     rcmap = reverse_cmap(self.font)
     names = set(rcmap.keys())
-    names.difference_update(self._invalid_glyphs(names,rcmap))
+    names.difference_update(self._invalid_glyphs(names, rcmap))
     subsetter = Subsetter(options=self.options)
     subsetter.populate(glyphs=names)
     subsetter.subset(self.font)

@@ -19,6 +19,7 @@ from dumper import Dumper
 from base_fonter import BaseFonter
 from compressor import Compressor
 from glyf_serializer import GlyfSerializer
+from cff_serializer import CffSerializer
 
 
 class Preprocess(object):
@@ -27,6 +28,8 @@ class Preprocess(object):
   def __init__(self, fontfile, folder):
     self.fontfile = fontfile
     self.folder = folder
+    font = TTFont(self.fontfile,lazy=True)
+    self.isCff = 'CFF ' in font
 
   def metadata(self):
     output = self.folder + '/metadata'
@@ -65,7 +68,7 @@ class Preprocess(object):
       id = font.getGlyphID(name)
       glyphs.append(id)
       codepoints.append(code)
-      # print id,name,code
+      print id,name,code
     font.close()
 
     cp_dumper = Dumper(self.folder + '/codepoints')
@@ -75,9 +78,23 @@ class Preprocess(object):
     gid_dumper = Dumper(self.folder + '/gids')
     gid_dumper.dump_array(glyphs, 'H', '>')
     gid_dumper.close()
+    
+  def serial_glyphs(self):
+    if self.isCff:
+      self._serial_Cff()
+    else:
+      self._serial_Glyf()
+    
 
-  def serial_Glyf(self):
+  def _serial_Glyf(self):
     glyfSerializer = GlyfSerializer(self.fontfile)
     glyfSerializer.prepare_glyf()
     glyfSerializer.serialize_glyf(
         self.folder + '/glyph_table', self.folder + '/glyph_data')
+    
+  def _serial_Cff(self):
+    cffSerializer = CffSerializer(self.fontfile)
+    cffSerializer.prepare_cff()
+    cffSerializer.serialize_cff(
+        self.folder + '/glyph_table', self.folder + '/glyph_data')
+    cffSerializer.close()

@@ -17,18 +17,26 @@
 
 def build_dict_name_id(font):
   """Build glyphName to glyphId and vice versa dictionaries dicts[0] is name to id dicts[1] is id to name
+
   """
   glyphs = font.getGlyphOrder()
   dicts = ({}, {})
-  for name in glyphs:
-    id = font.getGlyphID(name)
-    dicts[0][name] = id
-    dicts[1][id] = name
+  isCff = 'CFF ' in font
+  if isCff:
+    for id, name in enumerate(glyphs):
+      dicts[0][name] = id
+      dicts[1][id] = name
+  else:
+    for name in glyphs:
+      id = font.getGlyphID(name)
+      dicts[0][name] = id
+      dicts[1][id] = name
   return dicts
 
 
 def reverse_cmap(font):
   """Build reverse cmap table for unicode Returns dict from name to unicode points
+
   """
   cmap = font['cmap'].getcmap(3, 1)
   if cmap:

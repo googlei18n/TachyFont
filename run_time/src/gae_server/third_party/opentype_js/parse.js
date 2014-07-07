@@ -517,7 +517,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                 locaOffset = offset;
                 break;
             case 'CFF ':
-                cffOffset = offset;
+                font.cffOffset = offset;
                 break;
             case 'kern':
                 kernOffset = offset;
@@ -529,11 +529,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
             p += 16;
         }
 
-        if (font.glyfOffset && locaOffset) {
-	    font.loca = parseLocaTable(data, locaOffset, font.numGlyphs, indexToLocFormat === 0);
+
+
+        if (font.glyfOffset && locaOffset && font.hmtxOffset) {
+	       font.loca = parseLocaTable(data, locaOffset, font.numGlyphs, indexToLocFormat === 0);
             font.metrics = parseHmtxTable(data, font.hmtxOffset, font.numberOfHMetrics, font.numGlyphs);
-        } else if (cffOffset) {
-            parseCFFTable(data, cffOffset, font);
+        } else if (font.cffOffset && font.hmtxOffset) {
+            font.metrics = parseHmtxTable(data, font.hmtxOffset, font.numberOfHMetrics, font.numGlyphs);
+           // parseCFFTable(data, cffOffset, font);
         } else {
             font.supported = false;
         }

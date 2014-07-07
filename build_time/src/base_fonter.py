@@ -16,6 +16,7 @@
 
 from fontTools.ttLib import TTFont
 from filler import Filler
+from fontTools.cffLib import Index
 
 
 class BaseFonter(object):
@@ -24,8 +25,9 @@ class BaseFonter(object):
   def __init__(self, fontfile):
     self.fontfile = fontfile
     self.font = TTFont(fontfile)
-    assert 'glyf' in self.font, 'only support TrueType (quadratic) fonts \
-    (eg, not CFF) at this time'
+    self.isCff = 'CFF ' in self.font
+    # assert 'glyf' in self.font, 'only support TrueType (quadratic) fonts \
+    #(eg, not CFF) at this time'
 
   def __zero_mtx(self, mtx):
     if mtx in self.font:
@@ -34,7 +36,6 @@ class BaseFonter(object):
         new[i] = [metric[0], 0]
       self.font[mtx].metrics.clear()
       self.font[mtx].metrics = new
-      
 
   def __zero_glyf(self, output):
     self.font = TTFont(output)
@@ -44,8 +45,30 @@ class BaseFonter(object):
     filler = Filler(output)
     filler.fill(glyf_off, glyf_len, '\0')
     filler.close()
-    
-  def __zero_loca(self, output):#more advanced filling needed
+
+  def __end_char_strings(self, output):
+    self.font = TTFont(output)
+    assert 'CFF ' in self.font
+    cffTableOffset = self.font.reader.tables['CFF '].offset
+    #print 'CFF starts', cffTableOffset
+    cffTable = self.font['CFF '].cff
+    assert len(cffTable.fontNames) == 1
+    charStringOffset = cffTable[cffTable.fontNames[0]].rawDict['CharStrings']
+    #print 'CS', charStringOffset
+    inner_file = self.font.reader.file
+    inner_file.seek(cffTableOffset + charStringOffset)
+    rawIndexFile = Index(inner_file)
+    baseOffset = rawIndexFile.offsetBase
+   # print 'Base', baseOffset
+    size = rawIndexFile.offsets[-1] - 1
+    offset = baseOffset + rawIndexFile.offsets[0]
+    self.font.close()
+    #print 'Filled', offset, size
+    filler = Filler(output)
+    filler.fill(offset, size, '\x0e')
+    filler.close()
+
+  def __zero_loca(self, output):  # more advanced filling needed
     self.font = TTFont(output)
     loca_off = self.font.reader.tables['loca'].offset
     loca_len = self.font.reader.tables['loca'].length
@@ -53,8 +76,6 @@ class BaseFonter(object):
     filler = Filler(output)
     filler.fill(loca_off, loca_len, '\0')
     filler.close()
-    
-    
 
   def base(self, output):
     """Call this function get base font Call only once, since given font will be closed
@@ -64,5 +85,8 @@ class BaseFonter(object):
     self.__zero_mtx('vmtx')
     self.font.save(output, reorderTables=False)
     self.font.close()
-    self.__zero_glyf(output)
+    if self.isCff:
+      self.__end_char_strings(output)
+    else:
+      self.__zero_glyf(output)
    # self.__zero_loca(output)

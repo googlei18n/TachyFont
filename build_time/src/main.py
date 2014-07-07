@@ -48,7 +48,7 @@ def main(args):
   preprocess = Preprocess(cleanfile, '.')
   preprocess.base_font()
   preprocess.cmap_dump()
-  preprocess.serial_Glyf()
+  preprocess.serial_glyphs()
 
 
 if __name__ == '__main__':

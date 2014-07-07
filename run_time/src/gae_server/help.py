@@ -24,6 +24,8 @@ from os import path
 import cStringIO
 from gzip import GzipFile
 
+
+
 last_time = None
 
 
@@ -48,6 +50,7 @@ def _parse_json(data):
 
 def _parse_array_from_str(data, type, byteorder):
   """Using array.fromstring function , parses given binary string and type Returns array of type
+
   """
   arr = array.array(type)
   arr.fromstring(data)
@@ -58,6 +61,7 @@ def _parse_array_from_str(data, type, byteorder):
 
 def _parse_array_from_file(filename, type, byteorder):
   """Using _parse_array_from_str, open given filename and parses it Returns array of type
+
   """
   file = open(filename, 'rb')
   arr = _parse_array_from_str(file.read(), type, byteorder)
@@ -89,6 +93,7 @@ def _build_cmap(cp_file, gid_file):
   return cmap
 
 
+
 def _parse_glyf_table(file_bytes):
   """Parses given file as glyf table, where each entry is such tuples 
   (glyph id, [hmtx lsb], [vmtx tsb], offset, size)
@@ -96,9 +101,16 @@ def _parse_glyf_table(file_bytes):
   fmt_GlyphTable = '>HH'
   HAS_HMTX = (1 << 0)
   HAS_VMTX = (1 << 1)
+  HAS_CFF = (1 << 2)
   header_size = struct.calcsize(fmt_GlyphTable)
+
   header = buffer(file_bytes[0:header_size])
   (flags, numGlyphs) = struct.unpack(fmt_GlyphTable, header)
+  deltaOffset = -1
+  if flags & HAS_CFF:
+    fmt_delta_size = struct.calcsize('>L')
+    deltaOffset = struct.unpack('>L', file_bytes[header_size:header_size+fmt_delta_size])[0]
+    header_size += fmt_delta_size
   fmt_mtx = ''
   if flags & HAS_HMTX: fmt_mtx+='h'
   if flags & HAS_VMTX: fmt_mtx+='h'
@@ -106,7 +118,8 @@ def _parse_glyf_table(file_bytes):
   file_data = buffer(file_bytes[header_size:])
   return \
     _parse_array_fmt(fmt_entry, numGlyphs, file_data), flags & HAS_HMTX, \
-    flags & HAS_VMTX, header_size, struct.calcsize(fmt_entry)
+    flags & HAS_VMTX, flags & HAS_CFF, deltaOffset,header_size, struct.calcsize(fmt_entry)
+
 
 
 def _read_region(file, offset, size):
@@ -142,6 +155,7 @@ def prepare_bundle(request):
     if code in cmap:
       gids.update(closure_reader.read(cmap[code]))
   closure_reader.close()
+
   elapsed_time('gather glyph info')
 
   table = open(base + '/glyph_table', 'rb')
@@ -152,10 +166,10 @@ def prepare_bundle(request):
   data_bytes = bytearray(data.read())
   elapsed_time('read glyph data ({0} bytes)'.format(len(data_bytes)))
 
-  (glyf_table, has_hmtx, has_vmtx, header_size, entry_size ) = \
+  (glyf_table, has_hmtx, has_vmtx, has_cff, delta_offset,header_size, entry_size ) = \
   _parse_glyf_table(table_bytes)
   mtx_count = has_hmtx + has_vmtx
-  flag_mtx = has_hmtx | has_vmtx << 1
+  flag_mtx = has_hmtx | has_vmtx << 1  | has_cff
   elapsed_time('open & parse glyph table')
 
   bundle_header = struct.pack('>HB', len(gids), flag_mtx)
@@ -177,7 +191,7 @@ def prepare_bundle(request):
         table_bytes[entry_offset:entry_offset + entry_size]
     bundle_pos += entry_size
 
-    data_offset = glyf_table[id][mtx_count + 1]
+    data_offset = glyf_table[id][mtx_count + 1] - delta_offset - 1
     data_size = glyf_table[id][mtx_count + 2]
     bundle_bytes[bundle_pos:bundle_pos + data_size] = \
         data_bytes[data_offset:data_offset + data_size]
@@ -194,6 +208,7 @@ def prepare_bundle(request):
 
 class ClosureReader(object):
   """Class to read closure list of a given glyph id Init with serialized closure files
+
   """
   fmt_idx = '>lH'
   fmt_idx_len = struct.calcsize(fmt_idx)
