@@ -176,6 +176,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         return v;
     };
 
+    Parser.prototype.writeUShortByOffset = function (offset,item) {
+         this.data.setUint16(offset,item);
+    };
+
     Parser.prototype.parseCard16 = Parser.prototype.parseUShort;
     Parser.prototype.parseSID = Parser.prototype.parseUShort;
     Parser.prototype.parseOffset16 = Parser.prototype.parseUShort;
@@ -199,6 +203,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         var v = getULong(this.data, this.offset + this.relativeOffset);
         this.relativeOffset += 4;
         return v;
+    };
+
+    Parser.prototype.writeULong = function (item) {
+        var v = this.data.setUint32(this.offset + this.relativeOffset,item);
+        this.relativeOffset += 4;
+        return v;
+    };
+
+    Parser.prototype.writeULongByOffset = function (offset,item) {
+         this.data.setUint32(offset,item);
     };
 
     Parser.prototype.parseFixed = function () {
@@ -269,6 +283,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
    Parser.prototype.writeHmtx = function(font){
 	writeHmtxTable(this.data, font.hmtxOffset, font.numberOfHMetrics, font.numGlyphs, font.metrics) 
    };
+
+    Parser.prototype.writeLoca = function(font){
+        writeLocaTable(this.data, font.locaOffset, font.numGlyphs, font.indexToLocFormat === 0, font.loca);
+    };
 
     // Precondition function that checks if the given predicate is true.
     // If not, it will log an error message to the console.
@@ -425,6 +443,30 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         return glyphOffsets;
     }
 
+
+        // Parse the `loca` table. This table stores the offsets to the locations of the glyphs in the font,
+    // relative to the beginning of the glyphData table.
+    // The number of glyphs stored in the `loca` table is specified in the `maxp` table (under numGlyphs)
+    // The loca table has two versions: a short version where offsets are stored as uShorts, and a long
+    // version where offsets are stored as uLongs. The `head` table specifies which version to use
+    // (under indexToLocFormat).
+    // https://www.microsoft.com/typography/OTSPEC/loca.htm
+    function writeLocaTable(data, start, numGlyphs, shortVersion,glyphOffsets) {
+        var p, writeFn,  glyphOffset, i;
+        p = new Parser(data, start);
+        writeFn = shortVersion ? p.writeUShort : p.writeULong;
+        // There is an extra entry after the last index element to compute the length of the last glyph.
+        // That's why we use numGlyphs + 1.
+        for (i = 0; i <= numGlyphs ; i += 1) {
+            glyphOffset = glyphOffsets[i];
+            if (shortVersion) {
+                // The short table version stores the actual offset divided by 2.
+                glyphOffset /= 2;
+            }
+            writeFn.call(p,glyphOffset);
+        }
+    }
+
    // Parse the header `head` table
     // https://www.microsoft.com/typography/OTSPEC/head.htm
     function parseHeadTable(data, start) {
@@ -489,7 +531,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                 break;
             case 'head':
                 font.tables.head = parseHeadTable(data, offset);
-                indexToLocFormat = font.tables.head.indexToLocFormat;
+                font.indexToLocFormat = font.tables.head.indexToLocFormat;
                 break;
             case 'hhea':
                 font.tables.hhea = parseHheaTable(data, offset);
@@ -514,7 +556,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                 font.glyfOffset = offset;
                 break;
             case 'loca':
-                locaOffset = offset;
+                font.locaOffset = offset;
                 break;
             case 'CFF ':
                 font.cffOffset = offset;
@@ -531,8 +573,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 
-        if (font.glyfOffset && locaOffset && font.hmtxOffset) {
-	       font.loca = parseLocaTable(data, locaOffset, font.numGlyphs, indexToLocFormat === 0);
+        if (font.glyfOffset && font.locaOffset && font.hmtxOffset) {
+	       font.loca = parseLocaTable(data, font.locaOffset, font.numGlyphs, font.indexToLocFormat === 0);
             font.metrics = parseHmtxTable(data, font.hmtxOffset, font.numberOfHMetrics, font.numGlyphs);
         } else if (font.cffOffset && font.hmtxOffset) {
             font.metrics = parseHmtxTable(data, font.hmtxOffset, font.numberOfHMetrics, font.numGlyphs);

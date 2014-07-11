@@ -35,11 +35,12 @@
   var FONTNAME = 'nanum-brush';
   var TEXTS=[];
   var baseReady = getBaseToFileSystem(FONTNAME);
+  
 </script>
-<img src="/slow_server?delay=15" height="1" width="1">
+
 </head>
 
-<body>
+<body  >
   Webfonts from
   <b>Google Webfont servers</b>.
   <br>
@@ -62,7 +63,7 @@
       <th style="text-align: center; width: 50%;">Web Font</th>
     </tr>
     <tr>
-      <td id="incrfont" style="font-family: nanum-brush;">
+      <td id="incrfont" style="font-family: nanum-brush;" >
 DaumTistory로그인대항해시대공략bset블로그홈|지역로그|태그|미디어로그|방명록|관리자|글쓰기한국어중
 국어음식:머스트-시도-들어본적이없는퓨전요리분류없음2013/10/1123:30이곳은해외"중국음식"는가짜대융합
 경계를벌리고경향이알려져있다.페루는"공항"(야끼소바와튀긴쌀을혼합요리)가,인디언만주닭을가지고,자메이
@@ -114,6 +115,7 @@ http://qwed01...우낀세상02/18http://qwed01...우낀세상02/18최근에받�
 123456789101112131415161718192021222324252627282930태그목록웹하드링크tistory티스토리
 가입하기!rssTOTAL:13,765TODAY:15YESTERDAY:80지역로그:태그:미디어로그:방명록:관리자:글쓰기우낀
 세상'sBlogispoweredbyDaum/DesignedbyTistory
+<script>TEXTS[TEXTS.length]=document.getElementById('incrfont').innerText;</script>
       </td>
       <td id="webfont" style="font-family: NanumBrushScript;"> 
 DaumTistory로그인대항해시대공략bset블로그홈|지역로그|태그|미디어로그|방명록|관리자|글쓰기한국어중
@@ -121,7 +123,6 @@ DaumTistory로그인대항해시대공략bset블로그홈|지역로그|태그|�
 경계를벌리고경향이알려져있다.페루는"공항"(야끼소바와튀긴쌀을혼합요리)가,인디언만주닭을가지고,자메이
 카는바보야끼소바를가지고있고,미국인은사랑포춘쿠키,게랑,참깨닭이있다.어떤한국인은어떻습니까?당신은한
 국요리의모든김치,두부수프,한국BBQ에대해생각한다면
-<script>TEXTS[TEXTS.length]=document.getElementById('incrfont').innerText;</script>
 ,당신은놓치고큰그림을.한국과중국은다시몇세기를간다풍부한역사를공유하고,그래서그기간동안전통요리의교
 환이될것이라고매우생각할수있습니다.역사계정에따르면,한국현대중국요리의탄생은대부분의서쪽해안항구도
 시에중국인사람들의합의로거슬러올라갈수인천19세기후반합니다.서울과인천에서두미만600킬로미터-한국어
@@ -134,7 +135,6 @@ DaumTistory로그인대항해시대공략bset블로그홈|지역로그|태그|�
 닙니다.아래한국어중국어음식을구성하는가장잘알려진메인반찬의일부입니다.한국카톨릭교하는매우까다로운
 언어이기때문에romanizations아래에나타납니다당신이레스토랑메뉴에서볼동일하지않을수있습니다.당신
 은또한한국어(왼쪽)와중국어번체(오른쪽)스크립트를참조할수있습니다.Jjajangmy
-<script>TEXTS[TEXTS.length]=document.getElementById('incrfont').innerText;</script>
 eon(짜장면/酢酱面)그것은유비쿼터스검은콩소스국수접시의당신의지역한국어중국어레스토랑에서은혜는모
 든테이블.Jjajangmyeon의소스는일반적으로해산물,절단돼지고기조각,그리고호박이나오이슬라이스야채를
 포함한다.Jjajangmyeon의서명두꺼운면은하얀밀가루로만들어집니다.사실상의미Jjajangmyeon,"튀김소
@@ -171,6 +171,8 @@ http://qwed01...우낀세상02/18http://qwed01...우낀세상02/18최근에받�
   </table>
 
   <script>
+  
+    document.getElementById('incrfont').style.visibility = 'hidden';
     //time_start('initial bundle')
     var BUNDLE =  requestGlyphs(FONTNAME,TEXTS[0]);
     var sequence = Promise.all([BUNDLE,baseReady]).then(function(results) {
@@ -184,5 +186,6 @@ http://qwed01...우낀세상02/18http://qwed01...우낀세상02/18최근에받�
         sequence = sequence.then(function(){return incrUpdate(FONTNAME,text);});
     });
   </script>
+  
 </body>
 </html>

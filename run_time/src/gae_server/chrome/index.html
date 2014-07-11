@@ -24,17 +24,18 @@
   <script src="js/script.js"></script>
   <script src="/zlib_js/gunzip.min.js"></script>
 <script>
+EMPTY_FS = true;
 var FONTNAME = 'nanum-brush';
 var TEXTS=[];
 var baseReady = getBaseToFileSystem(FONTNAME);
+
+
 </script>
 </head>
-<body>
-
- <div  style="font-family: nanum-brush;">
-    XZABCDEFGHIJKLMNOPQRSTUVWXYZ__
- </div>
-  <div  style="font-family: nanum-brush;">
+<body >
+ 
+ 
+  <div id="incrfont" style="font-family: nanum-brush ; ">
     DaumTistory로그인대항해시대공략bset블로그홈|지역로그|태그|미디어로그|방명록|관리<br>
     자|글쓰기한국어중국어음식:머스트-시도-들어본적이없는퓨전요리분류없음2013/10/1123:3<br>
     0이곳은해외"중국음식"는가짜대융합경계를벌리고경향이알려져있다.페루는"공항"(야끼소바와튀긴쌀을<br>
@@ -95,18 +96,19 @@ var baseReady = getBaseToFileSystem(FONTNAME);
   </div>
 
   <script>
+  document.getElementById('incrfont').style.visibility = 'hidden';
    TEXTS.forEach(function(text){
         baseReady = baseReady.then(function(){return incrUpdate(FONTNAME,text);});
    });
   </script>
   
   
-
+ 
 
   <!-- Use slow_server to cause WebPageTest.org to run longer and have a
        constant runtime to make visual comparison between web fonts and
        incremental fonts more obvious. For development you may want to set the
-       delay shorter. -->
-  <img src="/slow_server" height="1" width="1">
+       delay shorter.
+  <img src="/slow_server" height="1" width="1"> -->
 </body>
 </html>
