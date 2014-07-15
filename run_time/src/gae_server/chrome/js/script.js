@@ -17,19 +17,135 @@
 */
 
 
+/*
+ * FilesystemHelper class
+ * @param {Promise} filesystemReady Promise to filesystem is ready
+ * @param {Boolean} ASSUME_EMPTY Ignore contents of the filesystem
+ * @returns {FilesystemHelper}
+ */
+function FilesystemHelper(filesystemReady, ASSUME_EMPTY) {
+    this.filesystemReady = filesystemReady;
+    this.ASSUME_EMPTY = ASSUME_EMPTY;
+}
 
+FilesystemHelper.TYPES = {ARRAYBUFFER: 0, TEXT: 1, BINARYSTRING: 2, DATAURL: 3};
+
+
+FilesystemHelper.prototype.createFileWriter = function(fileEntry) {
+    return new Promise(function(resolve, reject) {
+        fileEntry.createWriter(function(fw) {
+            resolve(fw);
+        }
+        , reject);
+    });
+};
+
+FilesystemHelper.prototype.getFileEntry = function(filename, toCreate) {
+    return this.filesystemReady.then(function(fs) {
+        return new Promise(function(resolve, reject) {
+            fs.root.getFile(filename, {create: toCreate},
+            function(fileEntry) {
+                resolve(fileEntry);
+            },
+                    reject);
+        });
+    });
+};
+
+FilesystemHelper.prototype.getFileObject = function(fileEntry) {
+    return new Promise(function(resolve, reject) {
+        fileEntry.file(function(file) {
+            resolve(file);
+        }, reject);
+    });
+};
+
+FilesystemHelper.prototype.getFileWriter = function(filename) {
+    return this.getFileEntry(filename, true).then(this.createFileWriter);
+};
+
+FilesystemHelper.prototype.checkIfFileExists = function(filename) {
+    return this.filesystemReady.then(function(fs) {
+        return new Promise(function(resolve, reject) {
+            var exists;
+            fs.root.createReader().readEntries(function(entries) {
+                exists = entries.some(function(elem) {
+                    return elem.name == filename;
+                });
+            });
+            resolve(exists && !this.ASSUME_EMPTY);
+
+        });
+    });
+};
+
+FilesystemHelper.prototype.writeToTheFile = function(filename, content, contentType) {
+    return this.getFileWriter(filename).then(function(fileWriter) {
+        return new Promise(function(resolve, reject) {
+            fileWriter.onwriteend = function(e) {
+                resolve(e);
+            };
+            fileWriter.onerror = function(e) {
+                reject(e);
+            };
+            fileWriter.write(new Blob([content], {type: contentType}));
+        });
+    });
+};
+
+FilesystemHelper.prototype.getFileAs = function(filename, type) {
+    return this.getFileEntry(filename, true).then(this.getFileObject).then(function(file) {
+        return new Promise(function(resolve, reject) {
+            var reader = new FileReader();
+            reader.onloadend = function(e) {
+                resolve(e.target.result);
+            };
+            reader.onerror = reject;
+            switch(type){
+                case FilesystemHelper.TYPES.ARRAYBUFFER:
+                    reader.readAsArrayBuffer(file);
+                    break;
+                case FilesystemHelper.TYPES.TEXT:
+                    reader.readAsText(file);
+                    break;
+                case FilesystemHelper.TYPES.BINARYSTRING:
+                    reader.readAsBinaryString(file);
+                    break;
+                case FilesystemHelper.TYPES.DATAURL:
+                    reader.readAsDataURL(file);
+                    break;
+                default:
+                    reject();
+                    break;
+            }
+        });
+    });
+};
+
+FilesystemHelper.prototype.getFileURL = function(filename) {
+    return this.getFileEntry(filename, false)
+            .then(
+                    function(fe) {
+                        return fe.toURL();
+                    }
+            );
+};
+
+
+
+var EMPTY_FS = false;
 var TTF=true;
-var fileSystemReady = requestTemporaryFileSystem(8 * 1024 * 1024);
 
 var global_start_time = Date.now();
 var RLE_OPS = {  0xC0 : 'copy', 0xC8 : 'fill'};
 
 var LOCA_BLOCK_SIZE = 64;
-var EMPTY_FS = false;
 
-var CHARS_INJECTED={};
 var RESULTS=[];
+var REQUEST_SIZE = 8 * 1024 * 1024;
 
+
+var filesytem = new FilesystemHelper(requestTemporaryFileSystem(REQUEST_SIZE),EMPTY_FS);
 
 function time_start(msg) {
   console.time('@@@ ' + msg);
@@ -95,46 +211,48 @@ function strToCodeArrayExceptCodes(str,codes){
 	return arr;
 }
 
-function readPersistedCharacters(idx_file,fs){
-	return getFileAsText(fs,idx_file).then(function(idx_text){
-		if(idx_text){
-			return JSON.parse(idx_text);
-		}else{
-			return {0:0};//always request .notdef
-		}
-	});
+function readPersistedCharacters(fs, idx_file) {
+    return fs.getFileAs(idx_file, FilesystemHelper.TYPES.TEXT).then(
+            function(idx_text) {
+                if (idx_text) {
+                    return JSON.parse(idx_text);
+                } else {
+                    return {0: 0};//always request .notdef
+                }
+            });
 }
 
-function determineCharacters(font_name,codes,text){
+function determineCharacters(codes,text){
 	return new Promise(function(resolve,reject){
 		var arr = strToCodeArrayExceptCodes(text,codes);
 		resolve(arr);
 	});
 }
 
-function requestCharacters(chars, font_name){
-
-	return requestURL('/incremental_fonts/request','POST',JSON.stringify({'font':font_name,'arr':chars}),{'Content-Type':'application/json'},'arraybuffer');
+function requestCharacters(chars, font_name) {
+    return requestURL('/incremental_fonts/request', 'POST',
+            JSON.stringify({'font': font_name, 'arr': chars}),
+            {'Content-Type': 'application/json'}, 'arraybuffer');
 }
 
 
-function setTheFont(font_name,font_src){
-	font_src += ('?t='+Date.now());
-	console.log(font_src);
-	var font = new FontFace(font_name, "url("+font_src+")", {});
-	document.fonts.add(font);
-	font.load().then(function(){
-		var elem= document.getElementById('incrfont');
-		if(elem)
-			elem.style.visibility = '';
-	});
+function setTheFont(font_name, font_src) {
+    font_src += ('?t=' + Date.now());
+    var font = new FontFace(font_name, "url(" + font_src + ")", {});
+    document.fonts.add(font);
+    font.load().then(function() {
+        var elem = document.getElementById('incrfont');
+        if (elem)
+            elem.style.visibility = '';
+    });
 }
 
-function requestTemporaryFileSystem(grantedSize){
-	window.requestFileSystem  = window.requestFileSystem || window.webkitRequestFileSystem;
-	return new Promise(function(resolve,reject){
-		window.requestFileSystem(window.TEMPORARY, grantedSize, resolve , reject);
-	});
+function requestTemporaryFileSystem(requestSize) {
+    window.requestFileSystem = window.requestFileSystem
+            || window.webkitRequestFileSystem;
+    return new Promise(function(resolve, reject) {
+        window.requestFileSystem(window.TEMPORARY, requestSize, resolve, reject);
+    });
 }
 
 
@@ -143,16 +261,15 @@ function requestBaseFont(name){
 }
 
 
-function getBaseFont(inFS,fs,fontname,filename){
-	if(inFS){
-			return Promise.resolve();
-	}else{
-
-			return requestBaseFont(fontname).then(rleDecode).then(sanitizeBaseFont).then(
-					function(sanitized_base){ 
-						return persistToTheFilesystem(fs,filename,sanitized_base,'application/octet-binary');
-				});
-	}
+function getBaseFont(inFS, fs, fontname, filename) {
+    if (inFS) {
+        return Promise.resolve();
+    } else {
+        return requestBaseFont(fontname).then(rleDecode).then(sanitizeBaseFont).then(
+                function(sanitized_base) {
+                    return fs.writeToTheFile(filename, sanitized_base, 'application/octet-binary');
+                });
+    }
 
 }
 
@@ -163,71 +280,71 @@ function  byteOp(op){
 	return [byteCount , byteOperation];
 }
 
-function rleDecode(array_buffer){
-	//time_start('rle');
-	var readOffset = 0;
-	var writeOffset = 0;
-	var data = new DataView(array_buffer);
-	var totalSize = data.getUint32(readOffset); 
-	var fill_byte;
-	var byteOperation;
-	var operationSize;
-	var operationInfo;
-	var i;
-	readOffset+=4;
-	//time_start('rle_alloc');
-	var decodedData = new DataView(new ArrayBuffer(totalSize));
-	//time_end('rle_alloc');
-	while(writeOffset<totalSize){
-		byteOperation = data.getUint8(readOffset); 
-		readOffset++;
-		operationInfo= byteOp(byteOperation);
+function rleDecode(array_buffer) {
+    //time_start('rle');
+    var readOffset = 0;
+    var writeOffset = 0;
+    var data = new DataView(array_buffer);
+    var totalSize = data.getUint32(readOffset);
+    var fill_byte;
+    var byteOperation;
+    var operationSize;
+    var operationInfo;
+    var i;
+    readOffset += 4;
+    //time_start('rle_alloc');
+    var decodedData = new DataView(new ArrayBuffer(totalSize));
+    //time_end('rle_alloc');
+    while (writeOffset < totalSize) {
+        byteOperation = data.getUint8(readOffset);
+        readOffset++;
+        operationInfo = byteOp(byteOperation);
 
-		if(operationInfo[0]==0){
-			operationSize = data.getUint8(readOffset); 
-			readOffset+=1;
-		}else if(operationInfo[0]==1){
-			operationSize = data.getUint16(readOffset); 
-			readOffset+=2;
-		}else if(operationInfo[0]==2){
-			operationSize = data.getUint32(readOffset); 
-			readOffset+=4;
-		}
-		if(operationInfo[1]=='copy'){
-		  //time_start('rle copy ' + operationSize);
-		  // Each DataView operation is slow so minimize the number of operations.
-		  // https://code.google.com/p/chromium/issues/detail?id=225811
-		  var long_len = operationSize & ~3;
-		  i = 0;
-      for (; i < long_len; i += 4){
-        decodedData.setUint32(writeOffset,data.getUint32(readOffset));
-        readOffset += 4;
-        writeOffset += 4;  
-      }
-			for (; i < operationSize; i++){
-				decodedData.setUint8(writeOffset,data.getUint8(readOffset));
-				readOffset++;
-				writeOffset++;	
-			}
-      //time_end('rle copy ' + operationSize);
-		}else if(operationInfo[1]=='fill'){
-			fill_byte = data.getUint8(readOffset);
-      //time_start('rle fill ' + fill_byte + ' ' + operationSize);
-			readOffset++;
-			if(fill_byte != 0){
-				for(i=0;i<operationSize;i++){
-					decodedData.setUint8(writeOffset,fill_byte);
-					writeOffset++;	
-				}	
-			}else{
-				writeOffset+=operationSize;
-			}		
-      //time_end('rle fill ' + fill_byte + ' ' + operationSize);
-		}
+        if (operationInfo[0] == 0) {
+            operationSize = data.getUint8(readOffset);
+            readOffset += 1;
+        } else if (operationInfo[0] == 1) {
+            operationSize = data.getUint16(readOffset);
+            readOffset += 2;
+        } else if (operationInfo[0] == 2) {
+            operationSize = data.getUint32(readOffset);
+            readOffset += 4;
+        }
+        if (operationInfo[1] == 'copy') {
+            //time_start('rle copy ' + operationSize);
+            // Each DataView operation is slow so minimize the number of operations.
+            // https://code.google.com/p/chromium/issues/detail?id=225811
+            var long_len = operationSize & ~3;
+            i = 0;
+            for (; i < long_len; i += 4) {
+                decodedData.setUint32(writeOffset, data.getUint32(readOffset));
+                readOffset += 4;
+                writeOffset += 4;
+            }
+            for (; i < operationSize; i++) {
+                decodedData.setUint8(writeOffset, data.getUint8(readOffset));
+                readOffset++;
+                writeOffset++;
+            }
+            //time_end('rle copy ' + operationSize);
+        } else if (operationInfo[1] == 'fill') {
+            fill_byte = data.getUint8(readOffset);
+            //time_start('rle fill ' + fill_byte + ' ' + operationSize);
+            readOffset++;
+            if (fill_byte != 0) {
+                for (i = 0; i < operationSize; i++) {
+                    decodedData.setUint8(writeOffset, fill_byte);
+                    writeOffset++;
+                }
+            } else {
+                writeOffset += operationSize;
+            }
+            //time_end('rle fill ' + fill_byte + ' ' + operationSize);
+        }
 
-	}
-	//time_end('rle');
-	return decodedData.buffer;
+    }
+    //time_end('rle');
+    return decodedData.buffer;
 }
 
 
@@ -252,54 +369,6 @@ function sanitizeBaseFont(baseFont){
     return baseFont;
 }
 
-function createTheFile(filename){
-	return new Promise(function(resolve,reject){
-		fs.root.getFile(filename,{create:true},function(fe){ resolve(fe)},reject);
-	});
-}
-
-function createFileWriter(fileEntry){
-	return new Promise(function(resolve,reject){
-		fileEntry.createWriter(function(fw){ resolve(fw);}
-			,reject)
-	});
-}
-
-function getFileEntry(fs,filename,toCreate){
-	return new Promise(function(resolve,reject){
-		fs.root.getFile(filename,{create:toCreate},
-			function(fileEntry){resolve(fileEntry)},
-			reject);
-	});
-}
-
-function getFileObj(fileEntry){
-	return new Promise(function(resolve,reject){
-		fileEntry.file(function(file){ resolve(file) },reject);
-	});
-}
-
-function readFileAsArrayBuffer(file){	
-	return new Promise(function(resolve,reject){
-		var reader = new FileReader();	
-		reader.onloadend = function(e){resolve(e.target.result)};
-		reader.onerror = reject;
-		reader.readAsArrayBuffer(file);
-	});
-}
-
-function readFileAsText(file){	
-	return new Promise(function(resolve,reject){
-		var reader = new FileReader();	
-		reader.onloadend = function(e){resolve(e.target.result)};
-		reader.onerror = reject;
-		reader.readAsText(file);
-	});
-}
-
-function getFileWriter(fs,filename){
-	return getFileEntry(fs,filename,true).then(createFileWriter);
-}
 
 var HAS_CFF = 4;
 var HAS_HMTX = 1;
@@ -364,207 +433,131 @@ function injectCharacters(baseFont,glyphData){
     return baseFont;
 }
 
-function checkIfFileExists(fs,filename){
-	return new Promise(function(resolve,reject){
-		
-			var dirReader = fs.root.createReader();
-			dirReader.readEntries(function(entries){
-				var exists = entries.some(function(elem,idx,arr){
-					return elem.name == filename;
-				});
-
-				resolve(exists && !EMPTY_FS);
-			});
-
-	});
-}
-
-
-
-function getFileAsArrayBuffer(fs,filename){
-	return getFileEntry(fs,filename,true).then(getFileObj).then(readFileAsArrayBuffer);
-}
-
-function getFileAsText(fs,filename){
-	return getFileEntry(fs,filename,true).then(getFileObj).then(readFileAsText);
-}
-
-function writeToTheFile(content,contentType,fileWriter){
-	return new Promise(function(resolve,reject){
-		fileWriter.onwriteend = function(e) { resolve(e); };
-		fileWriter.onerror = function(e) {  reject(e)};                
-        fileWriter.write(new Blob([content],{type:contentType}));
-    });
-}
-
-function persistToTheFilesystem(fs,filename,content,type){
-	return getFileWriter(fs,filename).then(function(fw){ 
-		return writeToTheFile(content,type,fw);
-	});	
-}
-
-function clearFileSystem(){
-	return fileSystemReady.then(function(fs){	
-
-		var dirReader = fs.root.createReader();
-		dirReader.readEntries(function(entries){
-			entries.forEach(function(elem){
-				 if(elem.isDirectory){
-				 	elem.removeRecursively();
-				 }else{
-				 	elem.remove();	
-				 }
-			});
-		});
-	});
-}
-
-
 function getBaseToFileSystem(font_name)
 {
   //time_start('getBaseToFileSystem');
-	var FILENAME = font_name + '.ttf'
+    var FILENAME = font_name + '.ttf';
 
-	var doesBaseExist = fileSystemReady.then(
-		function(fs){
-			return checkIfFileExists(fs,FILENAME)
-		}
-	);
+    var doesBaseExist = filesytem.checkIfFileExists(FILENAME);
 
-	var baseFontPersisted = Promise.all([doesBaseExist, fileSystemReady]).then(
-		function(results){
-			return getBaseFont(results[0],results[1],font_name,FILENAME);
-		}
-	);
+    var baseFontPersisted = doesBaseExist.then(
+            function(doesExist) {
+                return getBaseFont(doesExist, filesytem, font_name, FILENAME);
+            }
+    );
 
-	var fileURLReady = Promise.all([baseFontPersisted,fileSystemReady])
-	.then(
-		function(results){ 
-			return getFileEntry(results[1],FILENAME,false);
-		})
-	.then(
-		function(fe){ 
-			return fe.toURL(); 
-		}
-	);
+    var fileURLReady = baseFontPersisted
+            .then(
+                    function() {
+                        return filesytem.getFileURL( FILENAME);
+                    });
 
-	return fileURLReady.then(
-		function(fileURL){
-			setTheFont(font_name, fileURL);
-		  //time_end('getBaseToFileSystem');
-		}
-	);
-
+    return fileURLReady.then(
+            function(fileURL) {
+                setTheFont(font_name, fileURL);
+                //time_end('getBaseToFileSystem');
+            }
+    );
 }
 
-function requestGlyphs(font_name,text)
+
+function requestGlyphs(font_name, text)
 {
-  //time_start('request glyphs')
+    //time_start('request glyphs')
 
-	var INDEXFILENAME = font_name + '.idx'
+    var INDEXFILENAME = font_name + '.idx';
 
-	var doesIdxExist = fileSystemReady.then(
-		function(fs){
-			return checkIfFileExists(fs,INDEXFILENAME)
-		}
-	);
+    var doesIdxExist = filesytem.checkIfFileExists(INDEXFILENAME);
 
-	var injectedChars = Promise.all([fileSystemReady,doesIdxExist]).then(
-		function(results){
-			if(results[1])
-				return readPersistedCharacters(INDEXFILENAME,results[0]);
-			else
-				return {};
-		}
-	);
+    var injectedChars = doesIdxExist.then(
+            function(doesExist) {
+                if (doesExist)
+                    return readPersistedCharacters(filesytem, INDEXFILENAME);
+                else
+                    return {};
+            }
+    );
 
-	var charsDetermined = injectedChars.then(
-		function(chars){
-			return determineCharacters(font_name,chars,text);
-		}
-	);
+    var charsDetermined = injectedChars.then(
+            function(chars) {
+                return determineCharacters(chars, text);
+            }
+    );
 
-	var indexUpdated = Promise.all([charsDetermined,fileSystemReady,injectedChars]).then(function(results){
-		if (results[0].length) {
-	    return persistToTheFilesystem(results[1],INDEXFILENAME,JSON.stringify(results[2]),'text/plain');
-		}
-	});
-	
-
-	var bundleReady = Promise.all([charsDetermined,indexUpdated]).then(
-		function(arr){
-		  //time_end('request glyphs')
-		  if (arr[0].length) {
-		    return requestCharacters(arr[0],font_name);
-		  } else {
-		    return null;
-		  }
-		}
-	);
+    var indexUpdated = Promise.all([charsDetermined, injectedChars]).then(
+            function(results) {
+                if (results[0].length) {
+                    return filesytem.writeToTheFile(INDEXFILENAME,
+                            JSON.stringify(results[1]), 'text/plain');
+                }
+            });
 
 
-	return bundleReady;
+    var bundleReady = Promise.all([charsDetermined, indexUpdated]).then(
+            function(arr) {
+                if (arr[0].length) {
+                    return requestCharacters(arr[0], font_name);
+                } else {
+                    return null;
+                }
+            }
+    );
+
+
+    return bundleReady;
 }
 
-function injectBundle(font_name,bundle){
-  //time_start('inject bundle')
-	var filename = font_name + '.ttf';
+function injectBundle(font_name, bundle) {
+    //time_start('inject bundle')
+    var filename = font_name + '.ttf';
 
-	var charsInjected, fileUpdated;
-	if (bundle != null) {
-  	charsInjected =fileSystemReady.then(
-  		function(fs){
-  			return getFileAsArrayBuffer(fs,filename)
-  		}
-  	).then(
-  			function(baseFont){
-  				return injectCharacters(baseFont,bundle);
-  			}
-  	);
-  
-  	fileUpdated = Promise.all([charsInjected,fileSystemReady]).then(
-  		function(results){
-  			return persistToTheFilesystem(results[1],filename,results[0],'application/octet-binary');
-  		}
-  	);
-	} else {
-	  charsInjected = fileUpdated = Promise.resolve();
-	}
+    var charsInjected, fileUpdated;
+    if (bundle != null) {
+        charsInjected = filesytem.getFileAs(filename,
+                FilesystemHelper.TYPES.ARRAYBUFFER).then(
+                function(baseFont) {
+                    return injectCharacters(baseFont, bundle);
+                }
+        );
 
-	var fileURLReady = Promise.all([fileUpdated,fileSystemReady])
-	.then(
-		function(results){ 
-			return getFileEntry(results[1],filename,false);
-		})
-	.then(
-		function(fe){ 
-			return fe.toURL(); 
-		}
-	);
+        fileUpdated = charsInjected.then(
+                function(newBase) {
+                    return filesytem.writeToTheFile(filename, newBase,
+                            'application/octet-binary');
+                }
+        );
+    } else {
+        charsInjected = fileUpdated = Promise.resolve();
+    }
 
-	return fileURLReady.then(
-		function(fileURL){
-		  //time_end('inject bundle')
-			setTheFont(font_name, fileURL);
-		}
-	);
+    var fileURLReady = fileUpdated.then(
+            function() {
+                return filesytem.getFileURL(filename);
+            }
+    );
+
+    return fileURLReady.then(
+            function(fileURL) {
+                //time_end('inject bundle')
+                setTheFont(font_name, fileURL);
+            }
+    );
 
 }
 
-function incrUpdate(font_name,text){
+function incrUpdate(font_name, text) {
 
-  //time_start('incrUpdate')
-	var FILENAME = font_name + '.ttf'
+    //time_start('incrUpdate')
 
-	var bundleReady = requestGlyphs(font_name,text);
+    var bundleReady = requestGlyphs(font_name, text);
 
-	return bundleReady.then(
-		function(bundle){
-				injectBundle(font_name,bundle);
+    return bundleReady.then(
+            function(bundle) {
+                injectBundle(font_name, bundle);
 
-			  //time_end('incrUpdate')
-		}
-	);
+                //time_end('incrUpdate')
+            }
+    );
 }
 
 
