@@ -355,12 +355,63 @@ BinaryFontEditor.readOps.CCMP = function(editor, font) {
     compact_gos.type = editor.getUint8_();
     compact_gos.nGroups = editor.getUint16_();
     compact_gos.segments = [];
-    var startCode, length, gid;
-    for (var i = 0; i < compact_gos.nGroups; i++) {
-        startCode = editor.getUint32_();
-        length = editor.getUint32_();
-        gid = editor.getUint32_();
-        compact_gos.segments.push([startCode, length, gid]);
+    if (compact_gos.type == 5) {
+        var startCode, length, gid;
+        for (var i = 0; i < compact_gos.nGroups; i++) {
+            startCode = editor.getUint32_();
+            length = editor.getUint32_();
+            gid = editor.getUint32_();
+            compact_gos.segments.push([startCode, length, gid]);
+        }
+    } else if (compact_gos.type == 3) {
+        var extraOffset = [];
+        var startCode, length, gid, segment;
+        for (var i = 0; i < compact_gos.nGroups; i++) {
+            segment = editor.getOffset_(3); //lower 24 bits
+            startCode = (segment & 0xF80000) >> 19;
+            length = (segment & 0x70000) >> 16;
+            gid = segment & 0xFFFF;
+            compact_gos.segments.push([startCode, length, gid]);
+            if (startCode == 0x1F) {
+                extraOffset.push([i, 0]);
+            }
+            if (length == 0x7) {
+                extraOffset.push([i, 1]);
+            }
+        }
+        var pos = 0, nextByte, value;
+        var readNextNibble = function() {
+            if (pos % 8 == 0) {
+               nextByte = editor.getUint8_();
+               value = (nextByte & 0xF0) >>> 4;
+           } else {
+               value = (nextByte & 0x0F);
+           }
+           pos += 4;
+           return value;
+        };
+        var extraLen = extraOffset.length, numNibbles, extraData, sign, place;
+        for (var i = 0; i < extraLen; i++) {
+            extraData = 0;
+            numNibbles = readNextNibble();
+            if (numNibbles < 8) {
+                sign = 1;
+                numNibbles++;
+            } else {
+                sign = -1;
+                numNibbles -= 7;
+            }
+            for (var j = 0; j < numNibbles; j++) {
+                extraData <<= 4;
+                extraData |= readNextNibble();
+            }
+            extraData *= sign;
+            place = extraOffset[i];
+            compact_gos.segments[place[0]][place[1]] = extraData;
+        }
+        for (var i = 1; i < compact_gos.nGroups; i++) {
+            compact_gos.segments[i][0] += compact_gos.segments[i - 1][0];
+        }
     }
     font.compact_gos = compact_gos;
 };

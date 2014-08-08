@@ -111,7 +111,7 @@ class InfoOps(object):
   @staticmethod
   def _getCCMP(font):
     compacter = CmapCompacter(font)
-    data = compacter.generateGOSType(5)
+    data = compacter.generateGOSType(3)
     return data
   
   @staticmethod
