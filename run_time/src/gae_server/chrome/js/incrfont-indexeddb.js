@@ -112,6 +112,11 @@ IncrementalFont.createManager = function(fontname) {
       var rle_fontdata = new DataView(xfer_bytes, fileinfo.headSize);
       var raw_base = RLEDecoder.rleDecode([header_data, rle_fontdata]);
       var raw_basefont = new DataView(raw_base.buffer, header_data.byteLength);
+      
+      IncrementalFontUtils.writeCmap12(raw_basefont, fileinfo);
+      IncrementalFontUtils.writeCmap4(raw_basefont, fileinfo);
+      IncrementalFontUtils.writeCharsetFormat2(raw_basefont, fileinfo);
+
       var basefont =
         IncrementalFontUtils.sanitizeBaseFont(fileinfo, raw_basefont);
       incrFontMgr.persistDelayed_(IncrementalFont.BASE);
