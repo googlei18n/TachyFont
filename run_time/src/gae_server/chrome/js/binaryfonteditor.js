@@ -25,6 +25,7 @@ goog.provide('tachyfont.BinaryFontEditor');
  * Binary Font Editor - A namespace.
  * Binary operation over font file or glyph bundle.
  * Always big endian byte order.
+ *
  * @param {DataView} dataView DataView which includes data
  * @param {number} baseOffset Set this offset as 0 offset for operations
  * @constructor
@@ -80,9 +81,8 @@ tachyfont.BinaryFontEditor.prototype.setUint16_ = function(data) {
 
 /**
  * @param {number} data Signed short
- * @private
  */
-tachyfont.BinaryFontEditor.prototype.setInt16_ = function(data) {
+tachyfont.BinaryFontEditor.prototype.setInt16 = function(data) {
   this.dataView.setInt16(this.baseOffset + this.offset, data);
   this.offset += 2;
 };
@@ -124,9 +124,8 @@ tachyfont.BinaryFontEditor.prototype.getInt32_ = function() {
  * @param {function()} getter One of getUint or getInt functions
  * @param {number} count Size of array
  * @return {Array.<number>}
- * @private
  */
-tachyfont.BinaryFontEditor.prototype.getArrayOf_ = function(getter, count) {
+tachyfont.BinaryFontEditor.prototype.getArrayOf = function(getter, count) {
   var arr = [];
   for (var i = 0; i < count; i++) {
     arr.push(getter.call(this));
@@ -137,10 +136,9 @@ tachyfont.BinaryFontEditor.prototype.getArrayOf_ = function(getter, count) {
 
 /**
  * @param {function(number)} setter One of setUint or setInt functions
- * @param {Array.<number>} arr
- * @private
+ * @param {Array.<number>} arr .
  */
-tachyfont.BinaryFontEditor.prototype.setArrayOf_ = function(setter, arr) {
+tachyfont.BinaryFontEditor.prototype.setArrayOf = function(setter, arr) {
   var count = arr.length;
   for (var i = 0; i < count; i++) {
     setter.call(this, arr[i]);
@@ -741,10 +739,10 @@ tachyfont.BinaryFontEditor.prototype.setMtxSideBearing =
     gid, value) {
   if (gid < metricCount) {
     this.seek(start + gid * 4 + 2);
-    this.setInt16_(value);
+    this.setInt16(value);
   }else {
     this.seek(start + 2 * gid + 2 * metricCount);
-    this.setInt16_(value);
+    this.setInt16(value);
   }
 };
 

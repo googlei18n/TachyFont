@@ -127,14 +127,14 @@ tachyfont.IncrementalFontUtils.injectCharacters = function(obj, baseFont,
         // Fix the loca value after this one.
         baseBinEd.seek(obj.glyphOffset + newNextOne);
         if (length > 0) {
-          baseBinEd.setInt16_(-1);
+          baseBinEd.setInt16(-1);
         }else if (length == 0) {
           /*if it is still zero,then could write -1*/
           var currentUint1 = baseBinEd.getUint32_(),
               currentUint2 = baseBinEd.getUint32_();
           if (currentUint1 == 0 && currentUint2 == 0) {
             baseBinEd.seek(obj.glyphOffset + newNextOne);
-            baseBinEd.setInt16_(-1);
+            baseBinEd.setInt16(-1);
           }
         }
       }
@@ -170,9 +170,9 @@ tachyfont.IncrementalFontUtils.injectCharacters = function(obj, baseFont,
       }
     }
 
-    var bytes = bundleBinEd.getArrayOf_(bundleBinEd.getUint8_, length);
+    var bytes = bundleBinEd.getArrayOf(bundleBinEd.getUint8_, length);
     baseBinEd.seek(obj.glyphOffset + offset);
-    baseBinEd.setArrayOf_(baseBinEd.setUint8_, bytes);
+    baseBinEd.setArrayOf(baseBinEd.setUint8_, bytes);
   }
   // time_end('inject')
 
@@ -242,7 +242,7 @@ tachyfont.IncrementalFontUtils.writeCmap4 = function(baseFont, headerInfo) {
   }
   // Write glyphIdArray values.
   if (glyphIdArrayLen > 0)
-    binEd.setArrayOf_(binEd.setUint16_, glyphIdArray);
+    binEd.setArrayOf(binEd.setUint16_, glyphIdArray);
 };
 
 
@@ -310,7 +310,7 @@ tachyfont.IncrementalFontUtils.sanitizeBaseFont = function(obj, baseFont) {
       glyphSize = nextOne - thisOne;
       if (glyphSize) {
         binEd.seek(glyphOffset + thisOne);
-        binEd.setInt16_(-1);
+        binEd.setInt16(-1);
       }
     }
   } else {
